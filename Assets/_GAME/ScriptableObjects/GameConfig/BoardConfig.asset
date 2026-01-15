@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ad658fc411f3b654e908e1a76c2ccd05, type: 3}
+  m_Name: BoardConfig
+  m_EditorClassIdentifier: Assembly-CSharp::BoardConfig
+  tileSize: 1
+  padding: -0.15
+  tilePrefab: {fileID: 5415765851769724594, guid: 4b39139223d568744b66ec1f918b76ef, type: 3}
+  iconSprites:
+  - {fileID: -4624011131410558117, guid: 0a4c04627820ee1459bc2ec311d62aa4, type: 3}
+  - {fileID: -7364823422338184377, guid: 7f605f7a6ed92eb4ea5ce25164283835, type: 3}
+  - {fileID: 742919511911846744, guid: fcb88c3f73c46d543bd999afb9bf315b, type: 3}
+  - {fileID: 8161472552560778960, guid: 402291efeecdf8844b13e431bac92ebb, type: 3}
+  - {fileID: 887387325851772620, guid: ff0dc5c6cb032bb4e8fbb5679e94e343, type: 3}
+  - {fileID: 7985042018138347892, guid: ac3ac3044df322440872a2b1a4dcdaab, type: 3}
+  poolDefaultSize: 100
+  poolMaxSize: 300
