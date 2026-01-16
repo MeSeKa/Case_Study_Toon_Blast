@@ -83,6 +83,29 @@ public class Tile : MonoBehaviour
         });
     }
 
+    public void AnimateMove(Vector3 targetPos, float duration, Ease ease, float overshoot = 0)
+    {
+        // Overshoot parametresi gravity/refill için opsiyonel
+        if (overshoot > 0)
+            transform.DOMove(targetPos, duration).SetEase(ease, overshoot);
+        else
+            transform.DOMove(targetPos, duration).SetEase(ease);
+    }
+
+    public void AnimateSpawn(Vector3 targetPos, float duration, Ease ease, float overshoot)
+    {
+        // Spawn olurken önce pozisyonu ayarla, sonra hedefe git
+        // (Veya mevcut yapýndaki gibi yukarýdan düþür)
+        transform.DOMove(targetPos, duration).SetEase(ease, overshoot);
+    }
+
+    public void AnimateExplosion(float duration, Ease ease, System.Action onComplete)
+    {
+        transform.DOScale(Vector3.zero, duration)
+            .SetEase(ease)
+            .OnComplete(() => onComplete?.Invoke());
+    }
+
     // Force Swap gibi anlýk deðiþimler için
     public void ChangeType(int newType, TileSkin newSkin)
     {

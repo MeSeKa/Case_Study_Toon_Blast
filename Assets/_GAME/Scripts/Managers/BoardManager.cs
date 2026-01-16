@@ -3,6 +3,7 @@ using UnityEngine.Pool;
 using System.Collections;
 using System.Collections.Generic;
 using DG.Tweening;
+using UnityEngine.InputSystem;
 
 public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
 {
@@ -19,6 +20,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
 
     public override void Awake()
     {
+        Application.targetFrameRate = 60;
         base.Awake();
         InitializePool();
     }
@@ -46,8 +48,12 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
     private void GenerateBoard()
     {
         Grid = new Tile[currentLevel.columns, currentLevel.rows];
+
+        // Tahta boyutlarýný hesapla
         float totalWidth = (currentLevel.columns * boardConfig.tileSize) + ((currentLevel.columns - 1) * boardConfig.padding);
         float totalHeight = (currentLevel.rows * boardConfig.tileSize) + ((currentLevel.rows - 1) * boardConfig.padding);
+
+        // Baþlangýç (Sol Alt) pozisyonunu hesapla
         Vector2 startPos = new Vector2(-totalWidth / 2f + boardConfig.tileSize / 2f, -totalHeight / 2f + boardConfig.tileSize / 2f);
 
         for (int x = 0; x < currentLevel.columns; x++)
@@ -68,23 +74,26 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
                 Grid[x, y] = newTile;
             }
         }
-        AdjustCamera(totalWidth, totalHeight); 
-        BoardVisualizer.UpdateAllIcons(Grid, currentLevel);
 
-        // ARTIK SADECE SORGULUYORUZ
-        if (DeadlockSolver.IsDeadlocked(Grid, currentLevel.columns, currentLevel.rows))
+        AdjustCamera(totalWidth, totalHeight);
+
+        // --- CONTEXT ---
+        var ctx = new BoardContext(Grid, null, currentLevel.columns, currentLevel.rows);
+        BoardVisualizer.UpdateAllIcons(ctx, currentLevel);
+
+        if (DeadlockSolver.IsDeadlocked(ctx))
         {
             _isProcessing = true;
             StartCoroutine(ShuffleBoard());
         }
     }
 
-    // InputHandler tarafýndan çaðrýlýr
     public void OnTileClicked(Tile clickedTile)
     {
         if (_isProcessing) return;
 
-        List<Tile> connectedTiles = MatchFinder.FindMatches(clickedTile, Grid, currentLevel.rows, currentLevel.columns);
+        var ctx = new BoardContext(Grid, null, currentLevel.columns, currentLevel.rows);
+        List<Tile> connectedTiles = MatchFinder.FindMatches(clickedTile, ctx);
 
         if (connectedTiles.Count >= 2)
         {
@@ -92,7 +101,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         }
     }
 
-    // --- EXPLODE & GRAVITY ---
+    // --- EXPLODE ---
     private IEnumerator ExplodeTiles(List<Tile> matches)
     {
         _isProcessing = true;
@@ -100,15 +109,18 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
 
         foreach (Tile tile in matches)
         {
-            tile.transform.DOScale(Vector3.zero, boardConfig.explodeDuration)
-                .SetEase(boardConfig.explodeEase)
-                .OnComplete(() => _pool.Release(tile));
+            tile.AnimateExplosion(
+                boardConfig.explodeDuration,
+                boardConfig.explodeEase,
+                onComplete: () => _pool.Release(tile)
+            );
         }
 
         yield return new WaitForSeconds(boardConfig.explodeDuration);
         StartCoroutine(ApplyGravity());
     }
 
+    // --- GRAVITY ---
     private IEnumerator ApplyGravity()
     {
         for (int x = 0; x < currentLevel.columns; x++)
@@ -123,15 +135,18 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
                     {
                         Grid[x, writeY] = tile;
                         Grid[x, y] = null;
-                        tile.x = x;
-                        tile.y = writeY;
+                        tile.x = x; tile.y = writeY;
 
                         Vector3 targetPos = GetWorldPosition(x, writeY);
                         int newSortingOrder = (currentLevel.rows + writeY) * 10;
                         tile.GetComponent<SpriteRenderer>().sortingOrder = newSortingOrder;
 
-                        tile.transform.DOMove(targetPos, boardConfig.fallDuration)
-                            .SetEase(boardConfig.fallEase, boardConfig.gravityOvershoot);
+                        tile.AnimateMove(
+                            targetPos,
+                            boardConfig.fallDuration,
+                            boardConfig.fallEase,
+                            boardConfig.gravityOvershoot
+                        );
                     }
                     writeY++;
                 }
@@ -145,6 +160,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         StartCoroutine(FillBoard());
     }
 
+    // --- REFILL ---
     private IEnumerator FillBoard()
     {
         float startOffsetY = -((currentLevel.rows * boardConfig.tileSize + (currentLevel.rows - 1) * boardConfig.padding) / 2f) + boardConfig.tileSize / 2f;
@@ -162,8 +178,8 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
 
                     Tile newTile = _pool.Get();
                     Vector3 targetPos = GetWorldPosition(x, y);
-                    float spawnY = boardTopEdge + (newTileCountInColumn * (boardConfig.tileSize + boardConfig.padding));
 
+                    float spawnY = boardTopEdge + (newTileCountInColumn * (boardConfig.tileSize + boardConfig.padding));
                     newTile.transform.position = new Vector2(targetPos.x, spawnY);
                     newTileCountInColumn++;
 
@@ -171,17 +187,22 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
                     newTile.Initialize(x, y, randomType, selectedSkin, boardConfig.tileSize, sortingOrder);
                     Grid[x, y] = newTile;
 
-                    newTile.transform.DOMove(targetPos, boardConfig.refillDuration)
-                        .SetEase(boardConfig.refillEase, boardConfig.refillOvershoot);
+                    newTile.AnimateSpawn(
+                        targetPos,
+                        boardConfig.refillDuration,
+                        boardConfig.refillEase,
+                        boardConfig.refillOvershoot
+                    );
                 }
             }
         }
 
         yield return new WaitForSeconds(boardConfig.refillDuration);
-        BoardVisualizer.UpdateAllIcons(Grid, currentLevel);
 
-        // STATIC CLASS ÇAÐRISI
-        if (DeadlockSolver.IsDeadlocked(Grid, currentLevel.columns, currentLevel.rows))
+        var ctx = new BoardContext(Grid, null, currentLevel.columns, currentLevel.rows);
+        BoardVisualizer.UpdateAllIcons(ctx, currentLevel);
+
+        if (DeadlockSolver.IsDeadlocked(ctx))
         {
             StartCoroutine(ShuffleBoard());
         }
@@ -191,7 +212,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         }
     }
 
-    // --- SHUFFLE YÖNETÝMÝ (Artýk sadece Orkestra Þefi) ---
+    // --- SMART SHUFFLE ---
     private IEnumerator ShuffleBoard()
     {
         yield return new WaitForSeconds(boardConfig.shuffleStepDelay);
@@ -199,44 +220,41 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         List<Tile> allTiles = new List<Tile>();
         foreach (var t in Grid) if (t != null) allTiles.Add(t);
 
-        // KONTROL 1: Matematiksel olarak çözülebilir mi? (En az 2 ayný renk var mý?)
+        var ctx = new BoardContext(Grid, allTiles, currentLevel.columns, currentLevel.rows);
         bool isSolvable = DeadlockSolver.IsSolvable(allTiles);
 
-        // FAZ 1: RENK ENJEKSÝYONU (Sadece çözüm ÝMKANSIZSA çalýþýr)
+        // FAZ 1: ENJEKSÝYON
         if (!isSolvable)
         {
             if (allTiles.Count >= 2)
             {
                 Tile source, target;
-                bool foundInjection = DeadlockSolver.TryFindInjectionCandidates(Grid, currentLevel.columns, currentLevel.rows, allTiles, boardConfig.maxCalculationAttempts, out source, out target);
-
-                if (foundInjection)
+                if (DeadlockSolver.TryFindInjectionCandidates(ctx, boardConfig.maxCalculationAttempts, out source, out target))
                 {
                     int targetType = source.ItemType;
                     TileSkin targetSkin = boardConfig.tileSkins[targetType];
+
                     target.AnimateColorChange(targetType, targetSkin, boardConfig.injectionDuration);
 
                     yield return new WaitForSeconds(boardConfig.injectionDuration + boardConfig.shuffleStepDelay);
 
-                    // Optimizasyon: Boyama iþlemi þans eseri sorunu çözdü mü?
-                    if (!DeadlockSolver.IsDeadlocked(Grid, currentLevel.columns, currentLevel.rows))
+                    if (!DeadlockSolver.IsDeadlocked(ctx))
                     {
-                        BoardVisualizer.UpdateAllIcons(Grid, currentLevel);
+                        BoardVisualizer.UpdateAllIcons(ctx, currentLevel);
                         _isProcessing = false;
-                        yield break; // Sorun çözüldü, karýþtýrmaya gerek kalmadý.
+                        yield break;
                     }
                 }
             }
             else
             {
-                // Tahtada 2 taþ bile yoksa yapacak bir þey yok.
                 _isProcessing = false;
                 yield break;
             }
         }
 
-        // FAZ 2: KARIÞTIRMA (Tahta çözülebilir durumda ama kilitliyse burasý çalýþýr)
-        DeadlockSolver.ShuffleList(allTiles); // Listeyi matematiksel karýþtýr
+        // FAZ 2: KARIÞTIRMA
+        DeadlockSolver.ShuffleList(allTiles);
 
         int idx = 0;
         for (int x = 0; x < currentLevel.columns; x++)
@@ -250,36 +268,41 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
                     tile.x = x; tile.y = y;
 
                     Vector3 targetPos = GetWorldPosition(x, y);
-                    tile.transform.DOMove(targetPos, boardConfig.shuffleMoveDuration).SetEase(Ease.InOutQuad);
+
+                    // CONFIG: Shuffle Ease kullanýldý
+                    tile.AnimateMove(targetPos, boardConfig.shuffleMoveDuration, boardConfig.shuffleEase);
+
                     tile.GetComponent<SpriteRenderer>().sortingOrder = (currentLevel.rows + y) * 10;
                 }
             }
         }
         yield return new WaitForSeconds(boardConfig.shuffleMoveDuration);
 
-        // FAZ 3: FORCE MATCH (Karýþtýrma da yetmediyse, zorla yan yana koy)
-        if (DeadlockSolver.IsDeadlocked(Grid, currentLevel.columns, currentLevel.rows))
+        // FAZ 3: FORCE MATCH
+        if (DeadlockSolver.IsDeadlocked(ctx))
         {
             Tile tileA, tileB, slot1, slot2;
-            if (DeadlockSolver.TryFindForceMatchCandidates(Grid, currentLevel.columns, currentLevel.rows, allTiles, boardConfig.maxCalculationAttempts, 
+
+            if (DeadlockSolver.TryFindForceMatchCandidates(ctx, boardConfig.maxCalculationAttempts,
                 out tileA, out tileB, out slot1, out slot2))
             {
-                float currentSwapDuration = boardConfig.swapDuration;
+                float dur = boardConfig.swapDuration;
+                Ease swapEase = boardConfig.swapEase; // CONFIG: Swap Ease kullanýldý
 
                 PerformLogicalSwap(tileA, slot1);
                 if (tileB == slot1) tileB = tileA;
                 PerformLogicalSwap(tileB, slot2);
 
-                tileA.transform.DOMove(GetWorldPosition(tileA.x, tileA.y), currentSwapDuration).SetEase(Ease.OutBack);
-                slot1.transform.DOMove(GetWorldPosition(slot1.x, slot1.y), currentSwapDuration).SetEase(Ease.OutBack);
-                tileB.transform.DOMove(GetWorldPosition(tileB.x, tileB.y), currentSwapDuration).SetEase(Ease.OutBack);
-                slot2.transform.DOMove(GetWorldPosition(slot2.x, slot2.y), currentSwapDuration).SetEase(Ease.OutBack);
+                tileA.AnimateMove(GetWorldPosition(tileA.x, tileA.y), dur, swapEase);
+                slot1.AnimateMove(GetWorldPosition(slot1.x, slot1.y), dur, swapEase);
+                tileB.AnimateMove(GetWorldPosition(tileB.x, tileB.y), dur, swapEase);
+                slot2.AnimateMove(GetWorldPosition(slot2.x, slot2.y), dur, swapEase);
 
-                yield return new WaitForSeconds(currentSwapDuration + boardConfig.shuffleStepDelay);
+                yield return new WaitForSeconds(dur + boardConfig.shuffleStepDelay);
             }
         }
 
-        BoardVisualizer.UpdateAllIcons(Grid, currentLevel);
+        BoardVisualizer.UpdateAllIcons(ctx, currentLevel);
         _isProcessing = false;
     }
 
@@ -296,10 +319,16 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
 
     private void AdjustCamera(float boardWidth, float boardHeight)
     {
+        // Z pozisyonu -10 standarttýr, hardcoded kalabilir ama 
+        // kenar boþluklarý artýk Config'den geliyor.
         Camera.main.transform.position = new Vector3(0, 0, -10f);
+
         float aspectRatio = (float)Screen.width / Screen.height;
-        float verticalSize = boardHeight / 2f + 1f;
-        float horizontalSize = (boardWidth / 2f + 1f) / aspectRatio;
+
+        // CONFIG: cameraMargin kullanýldý (Eskiden +1f idi)
+        float verticalSize = boardHeight / 2f + boardConfig.cameraMargin;
+        float horizontalSize = (boardWidth / 2f + boardConfig.cameraMargin) / aspectRatio;
+
         Camera.main.orthographicSize = Mathf.Max(verticalSize, horizontalSize);
     }
 
@@ -308,5 +337,29 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         float targetX = -((currentLevel.columns * boardConfig.tileSize + (currentLevel.columns - 1) * boardConfig.padding) / 2f) + boardConfig.tileSize / 2f + x * (boardConfig.tileSize + boardConfig.padding);
         float targetY = -((currentLevel.rows * boardConfig.tileSize + (currentLevel.rows - 1) * boardConfig.padding) / 2f) + boardConfig.tileSize / 2f + y * (boardConfig.tileSize + boardConfig.padding);
         return new Vector2(targetX, targetY);
+    }
+
+    public void SwitchLevel(LevelData newLevel)
+    {
+        StopAllCoroutines();
+        DOTween.KillAll();
+        _isProcessing = false;
+
+        if (Grid != null)
+        {
+            for (int x = 0; x < Grid.GetLength(0); x++)
+            {
+                for (int y = 0; y < Grid.GetLength(1); y++)
+                {
+                    if (Grid[x, y] != null)
+                    {
+                        _pool.Release(Grid[x, y]);
+                        Grid[x, y] = null;
+                    }
+                }
+            }
+        }
+        currentLevel = newLevel;
+        GenerateBoard();
     }
 }

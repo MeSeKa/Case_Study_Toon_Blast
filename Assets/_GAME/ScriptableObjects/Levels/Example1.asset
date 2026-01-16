@@ -10,10 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9b3edcb9d2faf5747b44d0e56c204806, type: 3}
-  m_Name: Level 4
+  m_Name: Example1
   m_EditorClassIdentifier: Assembly-CSharp::LevelData
-  rows: 9
-  columns: 9
+  rows: 10
+  columns: 12
   colorCount: 6
   conditionA: 4
   conditionB: 7

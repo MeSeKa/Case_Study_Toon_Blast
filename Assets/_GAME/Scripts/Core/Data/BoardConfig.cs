@@ -8,6 +8,8 @@ public class BoardConfig : ScriptableObject
     [Header("Visual Layout")]
     public float tileSize = 1.0f;
     public float padding = 0.1f;
+    [Tooltip("Tahtanýn kenarlarýnda býrakýlacak kamera boþluðu")]
+    public float cameraMargin = 1.0f; 
 
     [Header("Assets")]
     public GameObject tilePrefab;
@@ -33,19 +35,21 @@ public class BoardConfig : ScriptableObject
     [Range(0f, 2f)] public float refillOvershoot = 0.85f;
 
     [Header("Shuffle & Animation Timings")]
-    [Tooltip("Her shuffle adýmý arasýndaki bekleme süresi")]
     public float shuffleStepDelay = 0.2f;
 
-    [Tooltip("Karýþtýrma sýrasýnda taþlarýn yer deðiþtirme süresi")]
+    [Header("Shuffle Animation")]
     public float shuffleMoveDuration = 0.5f;
+    public Ease shuffleEase = Ease.InOutQuad;
 
-    [Tooltip("Renk enjeksiyonu animasyon süresi")]
+    [Header("Injection Animation")]
     public float injectionDuration = 0.4f;
+    // Injection için renk deðiþimi genelde Linear veya default olur, ekstra Ease'e gerek yok ama istenirse eklenebilir.
 
-    [Tooltip("Force Match swap iþlemi süresi")]
+    [Header("Force Match Animation")]
     public float swapDuration = 0.5f;
+    public Ease swapEase = Ease.OutBack;
 
-    [Tooltip("Loop döngülerinde sonsuz döngüye girmemek için güvenlik sýnýrý")]
+    [Header("Logic")]
     public int maxCalculationAttempts = 50;
 }
 
