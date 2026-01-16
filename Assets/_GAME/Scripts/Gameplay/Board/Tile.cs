@@ -10,7 +10,7 @@ public class Tile : MonoBehaviour
     private SpriteRenderer _renderer;
     private TileSkin _currentSkin;
 
-    // YENÝ: Hesaplanan doðru boyutu burada saklayacaðýz
+    // Cache the correct scale to maintain consistency during animations/pooling
     private Vector3 _correctScale = Vector3.one;
 
     private void Awake()
@@ -18,6 +18,7 @@ public class Tile : MonoBehaviour
         _renderer = GetComponent<SpriteRenderer>();
     }
 
+    // Sets up the tile's data, visual appearance, and sorting order
     public void Initialize(int x, int y, int itemType, TileSkin skin, float targetSize, int sortingOrder)
     {
         this.x = x;
@@ -28,8 +29,8 @@ public class Tile : MonoBehaviour
         _renderer.sprite = skin.defaultSprite;
         _renderer.sortingOrder = sortingOrder;
 
-        // --- SCALE HESABI VE SAKLAMA ---
-        transform.localScale = Vector3.one; // Önce sýfýrla ki bounds doðru ölçülsün
+        // Reset scale before calculating bounds to ensure accuracy
+        transform.localScale = Vector3.one;
 
         if (_renderer.sprite != null)
         {
@@ -40,16 +41,17 @@ public class Tile : MonoBehaviour
             if (maxDimension > 0)
             {
                 float newScaleVal = targetSize / maxDimension;
-                _correctScale = Vector3.one * newScaleVal; // Deðeri sakla!
+                _correctScale = Vector3.one * newScaleVal;
             }
         }
 
-        // Saklanan deðeri uygula
+        // Apply the calculated scale
         transform.localScale = _correctScale;
 
         name = $"Tile_{x}_{y}";
     }
 
+    // Updates the visual icon (A, B, C) based on the group size
     public void SetVisualState(int stateIndex)
     {
         Sprite targetSprite = _currentSkin.defaultSprite;
@@ -64,41 +66,39 @@ public class Tile : MonoBehaviour
         if (_renderer.sprite != targetSprite)
         {
             _renderer.sprite = targetSprite;
-            // Eðer A,B,C ikonlarýnýn boyutlarý defaulttan çok farklýysa 
-            // burada tekrar scale hesabý yapýlabilir ama genelde gerekmez.
         }
     }
 
+    // Animates a color change (used for deadlock injection)
     public void AnimateColorChange(int newType, TileSkin newSkin, float duration)
     {
         this.ItemType = newType;
         this._currentSkin = newSkin;
 
-        // DÜZELTME: Vector3.one yerine _correctScale kullanýyoruz.
+        // Scale down, swap sprite, then scale back up to the correct size
         transform.DOScale(Vector3.zero, duration / 2f).SetEase(Ease.InBack).OnComplete(() =>
         {
             _renderer.sprite = newSkin.defaultSprite;
-            // Burada eski haline (hesaplanan doðru boyuta) dönüyor
             transform.DOScale(_correctScale, duration / 2f).SetEase(Ease.OutBack);
         });
     }
 
+    // General move animation (Gravity, Shuffle, Swap)
     public void AnimateMove(Vector3 targetPos, float duration, Ease ease, float overshoot = 0)
     {
-        // Overshoot parametresi gravity/refill için opsiyonel
         if (overshoot > 0)
             transform.DOMove(targetPos, duration).SetEase(ease, overshoot);
         else
             transform.DOMove(targetPos, duration).SetEase(ease);
     }
 
+    // Spawn/Drop animation for new tiles
     public void AnimateSpawn(Vector3 targetPos, float duration, Ease ease, float overshoot)
     {
-        // Spawn olurken önce pozisyonu ayarla, sonra hedefe git
-        // (Veya mevcut yapýndaki gibi yukarýdan düþür)
         transform.DOMove(targetPos, duration).SetEase(ease, overshoot);
     }
 
+    // Explosion animation when a group is matched
     public void AnimateExplosion(float duration, Ease ease, System.Action onComplete)
     {
         transform.DOScale(Vector3.zero, duration)
@@ -106,12 +106,12 @@ public class Tile : MonoBehaviour
             .OnComplete(() => onComplete?.Invoke());
     }
 
-    // Force Swap gibi anlýk deðiþimler için
+    // Instant type change (no animation), mostly for internal logic
     public void ChangeType(int newType, TileSkin newSkin)
     {
         this.ItemType = newType;
         this._currentSkin = newSkin;
         _renderer.sprite = newSkin.defaultSprite;
-        transform.localScale = _correctScale; // Boyutu garantiye al
+        transform.localScale = _correctScale; // Ensure correct scale
     }
 }

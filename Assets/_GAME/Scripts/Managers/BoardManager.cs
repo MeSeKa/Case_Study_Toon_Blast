@@ -20,6 +20,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
 
     public override void Awake()
     {
+        // Set target frame rate for mobile consistency
         Application.targetFrameRate = 60;
         base.Awake();
         InitializePool();
@@ -33,6 +34,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         }
     }
 
+    // Initialize object pool for tiles to optimize memory usage
     private void InitializePool()
     {
         _pool = new ObjectPool<Tile>(
@@ -49,11 +51,10 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
     {
         Grid = new Tile[currentLevel.columns, currentLevel.rows];
 
-        // Tahta boyutlarýný hesapla
         float totalWidth = (currentLevel.columns * boardConfig.tileSize) + ((currentLevel.columns - 1) * boardConfig.padding);
         float totalHeight = (currentLevel.rows * boardConfig.tileSize) + ((currentLevel.rows - 1) * boardConfig.padding);
 
-        // Baþlangýç (Sol Alt) pozisyonunu hesapla
+        // Center the board
         Vector2 startPos = new Vector2(-totalWidth / 2f + boardConfig.tileSize / 2f, -totalHeight / 2f + boardConfig.tileSize / 2f);
 
         for (int x = 0; x < currentLevel.columns; x++)
@@ -77,7 +78,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
 
         AdjustCamera(totalWidth, totalHeight);
 
-        // --- CONTEXT ---
+        // Update visuals and check for initial deadlocks
         var ctx = new BoardContext(Grid, null, currentLevel.columns, currentLevel.rows);
         BoardVisualizer.UpdateAllIcons(ctx, currentLevel);
 
@@ -101,7 +102,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         }
     }
 
-    // --- EXPLODE ---
+    // Handles tile explosion animation and logic
     private IEnumerator ExplodeTiles(List<Tile> matches)
     {
         _isProcessing = true;
@@ -120,7 +121,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         StartCoroutine(ApplyGravity());
     }
 
-    // --- GRAVITY ---
+    // Handles falling tiles (gravity)
     private IEnumerator ApplyGravity()
     {
         for (int x = 0; x < currentLevel.columns; x++)
@@ -160,7 +161,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         StartCoroutine(FillBoard());
     }
 
-    // --- REFILL ---
+    // Refills the board with new tiles falling from the top
     private IEnumerator FillBoard()
     {
         float startOffsetY = -((currentLevel.rows * boardConfig.tileSize + (currentLevel.rows - 1) * boardConfig.padding) / 2f) + boardConfig.tileSize / 2f;
@@ -212,7 +213,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         }
     }
 
-    // --- SMART SHUFFLE ---
+    // Smart shuffle to resolve deadlocks
     private IEnumerator ShuffleBoard()
     {
         yield return new WaitForSeconds(boardConfig.shuffleStepDelay);
@@ -223,7 +224,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         var ctx = new BoardContext(Grid, allTiles, currentLevel.columns, currentLevel.rows);
         bool isSolvable = DeadlockSolver.IsSolvable(allTiles);
 
-        // FAZ 1: ENJEKSÝYON
+        // Phase 1: Injection - If unsolvable, inject a needed color
         if (!isSolvable)
         {
             if (allTiles.Count >= 2)
@@ -249,11 +250,12 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
             else
             {
                 _isProcessing = false;
+                Debug.LogWarning("ShuffleBoard: Not enough tiles for injection.");
                 yield break;
             }
         }
 
-        // FAZ 2: KARIÞTIRMA
+        // Phase 2: Shuffle - Randomize positions
         DeadlockSolver.ShuffleList(allTiles);
 
         int idx = 0;
@@ -268,17 +270,14 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
                     tile.x = x; tile.y = y;
 
                     Vector3 targetPos = GetWorldPosition(x, y);
-
-                    // CONFIG: Shuffle Ease kullanýldý
                     tile.AnimateMove(targetPos, boardConfig.shuffleMoveDuration, boardConfig.shuffleEase);
-
                     tile.GetComponent<SpriteRenderer>().sortingOrder = (currentLevel.rows + y) * 10;
                 }
             }
         }
         yield return new WaitForSeconds(boardConfig.shuffleMoveDuration);
 
-        // FAZ 3: FORCE MATCH
+        // Phase 3: Force Match - Ensure playability if deadlock persists
         if (DeadlockSolver.IsDeadlocked(ctx))
         {
             Tile tileA, tileB, slot1, slot2;
@@ -287,7 +286,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
                 out tileA, out tileB, out slot1, out slot2))
             {
                 float dur = boardConfig.swapDuration;
-                Ease swapEase = boardConfig.swapEase; // CONFIG: Swap Ease kullanýldý
+                Ease swapEase = boardConfig.swapEase;
 
                 PerformLogicalSwap(tileA, slot1);
                 if (tileB == slot1) tileB = tileA;
@@ -319,13 +318,9 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
 
     private void AdjustCamera(float boardWidth, float boardHeight)
     {
-        // Z pozisyonu -10 standarttýr, hardcoded kalabilir ama 
-        // kenar boþluklarý artýk Config'den geliyor.
         Camera.main.transform.position = new Vector3(0, 0, -10f);
-
         float aspectRatio = (float)Screen.width / Screen.height;
 
-        // CONFIG: cameraMargin kullanýldý (Eskiden +1f idi)
         float verticalSize = boardHeight / 2f + boardConfig.cameraMargin;
         float horizontalSize = (boardWidth / 2f + boardConfig.cameraMargin) / aspectRatio;
 

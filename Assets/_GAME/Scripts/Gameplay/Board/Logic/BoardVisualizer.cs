@@ -3,7 +3,6 @@ using System.Collections.Generic;
 
 public static class BoardVisualizer
 {
-    // PARAMETRE: BoardContext
     public static void UpdateAllIcons(BoardContext ctx, LevelData levelData)
     {
         bool[,] visited = new bool[ctx.Columns, ctx.Rows];
@@ -16,7 +15,6 @@ public static class BoardVisualizer
 
                 if (tile != null && !visited[x, y])
                 {
-                    // MatchFinder'a da ayný context'i paslýyoruz
                     List<Tile> group = MatchFinder.FindMatches(tile, ctx);
 
                     foreach (Tile t in group) visited[t.x, t.y] = true;
