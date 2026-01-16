@@ -32,18 +32,29 @@ public class BoardConfig : ScriptableObject
     public Ease refillEase = Ease.OutBack;
     [Range(0f, 2f)] public float refillOvershoot = 0.85f;
 
-    [Header("Shuffle Settings")]
-    [Tooltip("Karýþtýrma adýmlarý arasýndaki bekleme süresi (Renk deðiþimi -> Karýþma -> Swap)")]
-    public float shuffleStepDelay = 0.5f; // Her adýmda yarým saniye beklesin
+    [Header("Shuffle & Animation Timings")]
+    [Tooltip("Her shuffle adýmý arasýndaki bekleme süresi")]
+    public float shuffleStepDelay = 0.2f;
+
+    [Tooltip("Karýþtýrma sýrasýnda taþlarýn yer deðiþtirme süresi")]
+    public float shuffleMoveDuration = 0.5f;
+
+    [Tooltip("Renk enjeksiyonu animasyon süresi")]
+    public float injectionDuration = 0.4f;
+
+    [Tooltip("Force Match swap iþlemi süresi")]
+    public float swapDuration = 0.5f;
+
+    [Tooltip("Loop döngülerinde sonsuz döngüye girmemek için güvenlik sýnýrý")]
+    public int maxCalculationAttempts = 50;
 }
 
-// Bu struct sayesinde Inspector'da her rengi ayrý ayrý paketleyebileceksin
 [System.Serializable]
 public struct TileSkin
 {
-    public string name; // Örn: "Blue" (Karýþmasýn diye)
-    public Sprite defaultSprite; // Blue_Default
-    public Sprite stateASprite;  // Blue_A (5-7 arasý)
-    public Sprite stateBSprite;  // Blue_B (7-9 arasý)
-    public Sprite stateCSprite;  // Blue_C (9+ üstü)
+    public string name;
+    public Sprite defaultSprite;
+    public Sprite stateASprite;
+    public Sprite stateBSprite;
+    public Sprite stateCSprite;
 }

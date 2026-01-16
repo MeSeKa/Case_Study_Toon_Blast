@@ -3,7 +3,6 @@ using UnityEngine.Pool;
 using System.Collections;
 using System.Collections.Generic;
 using DG.Tweening;
-using UnityEngine.InputSystem;
 
 public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
 {
@@ -12,8 +11,11 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
     public LevelData currentLevel;
 
     public Tile[,] Grid { get; private set; }
+
+    // Encapsulation: Dýþarýdan okunabilir, içeriden deðiþtirilebilir.
     private bool _isProcessing = false;
     public bool IsProcessing { get { return _isProcessing; } }
+
     private ObjectPool<Tile> _pool;
 
     public override void Awake()
@@ -102,13 +104,15 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
             }
         }
     }
+
+    // InputHandler tarafýndan çaðrýlacak metot
     public void OnTileClicked(Tile clickedTile)
     {
         if (_isProcessing) return;
 
         List<Tile> connectedTiles = MatchFinder.FindMatches(clickedTile, Grid, currentLevel.rows, currentLevel.columns);
 
-        // PDF Kuralý: En az 2 blok olmalý [cite: 11]
+        // PDF Kuralý: En az 2 blok olmalý
         if (connectedTiles.Count >= 2)
         {
             StartCoroutine(ExplodeTiles(connectedTiles));
@@ -161,7 +165,8 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
             }
         }
 
-        if (boardConfig.refillDelay > 0f) yield return new WaitForSeconds(boardConfig.refillDelay);
+        float delay = boardConfig.refillDelay > 0f ? boardConfig.refillDelay : 0f;
+        if (delay > 0) yield return new WaitForSeconds(delay);
         else yield return null;
 
         StartCoroutine(FillBoard());
@@ -242,20 +247,13 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         {
             if (allTiles.Count >= 2)
             {
-                // Renkleri deðiþtir
                 yield return StartCoroutine(ProcessInjection(allTiles));
 
-                // --- OPTÝMÝZASYON BURADA ---
-                // Renk deðiþimi sonrasý hemen kontrol et.
-                // allTiles[0] ve [1] genelde komþu olduðu için (0,0 ve 0,1)
-                // renk deðiþimi anýnda bir eþleþme yaratýr.
                 if (!IsDeadlocked())
                 {
-                    // Sorun çözüldü! Karýþtýrmaya (Shuffle) gerek kalmadý.
-                    // Görselleri güncelle ve oyunu aç.
                     UpdateBoardVisuals();
                     _isProcessing = false;
-                    yield break; // Coroutine'den çýk
+                    yield break;
                 }
             }
             else
@@ -265,10 +263,10 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
             }
         }
 
-        // --- FAZ 3: KARIÞTIRMA (Sadece deadlock hala devam ediyorsa buraya gelir) ---
+        // --- FAZ 3: KARIÞTIRMA ---
         yield return StartCoroutine(ProcessShuffle(allTiles));
 
-        // --- FAZ 4: SON KONTROL VE FORCE MATCH ---
+        // --- FAZ 4: FORCE MATCH ---
         if (IsDeadlocked())
         {
             yield return StartCoroutine(ProcessForceMatch(allTiles));
@@ -281,71 +279,47 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
     // --- ALT COROUTINE: RENK ENJEKSÝYONU ---
     private IEnumerator ProcessInjection(List<Tile> allTiles)
     {
-        float animDuration = 0.4f;
-
         Tile sourceTile = null;
         Tile targetNeighbor = null;
 
-        // 1. Rastgele bir taþ ve onun geçerli bir komþusunu bul
         int attempts = 0;
-        while (attempts < 50) // Deneme sayýsýný biraz arttýrdým garanti olsun diye
+
+        // Gerek yok ta ne olur ne olmaz denerken verdiðim sürelerden dolayý anlýk olarak boþ olan bir þeye fln denk gelirse belki diye
+        while (attempts < boardConfig.maxCalculationAttempts)
         {
             sourceTile = allTiles[Random.Range(0, allTiles.Count)];
-
             List<Tile> validNeighbors = new List<Tile>();
 
             // 4 Yöne Bak
-            if (sourceTile.x < currentLevel.columns - 1)
-            {
-                Tile t = Grid[sourceTile.x + 1, sourceTile.y];
-                if (t != null) validNeighbors.Add(t);
-            }
-            if (sourceTile.x > 0)
-            {
-                Tile t = Grid[sourceTile.x - 1, sourceTile.y];
-                if (t != null) validNeighbors.Add(t);
-            }
-            if (sourceTile.y < currentLevel.rows - 1)
-            {
-                Tile t = Grid[sourceTile.x, sourceTile.y + 1];
-                if (t != null) validNeighbors.Add(t);
-            }
-            if (sourceTile.y > 0)
-            {
-                Tile t = Grid[sourceTile.x, sourceTile.y - 1];
-                if (t != null) validNeighbors.Add(t);
-            }
+            if (sourceTile.x < currentLevel.columns - 1) { Tile t = Grid[sourceTile.x + 1, sourceTile.y]; if (t != null) validNeighbors.Add(t); }
+            if (sourceTile.x > 0) { Tile t = Grid[sourceTile.x - 1, sourceTile.y]; if (t != null) validNeighbors.Add(t); }
+            if (sourceTile.y < currentLevel.rows - 1) { Tile t = Grid[sourceTile.x, sourceTile.y + 1]; if (t != null) validNeighbors.Add(t); }
+            if (sourceTile.y > 0) { Tile t = Grid[sourceTile.x, sourceTile.y - 1]; if (t != null) validNeighbors.Add(t); }
 
             if (validNeighbors.Count > 0)
             {
                 targetNeighbor = validNeighbors[Random.Range(0, validNeighbors.Count)];
-                break; // Ýkili bulundu!
+                break;
             }
-
             attempts++;
         }
 
-        // Fail-Safe: Eðer aþýrý þanssýzsak ve komþu bulamazsak (neredeyse imkansýz),
-        // listenin baþýndaki iki taþý kullan.
         if (targetNeighbor == null && allTiles.Count >= 2)
         {
             sourceTile = allTiles[0];
             targetNeighbor = allTiles[1];
         }
 
-        // 2. OPERASYON: Komþuyu, Kaynaðýn rengine boya
         if (sourceTile != null && targetNeighbor != null)
         {
-            // Kaynak taþýn rengini öðren
             int targetType = sourceTile.ItemType;
             TileSkin targetSkin = boardConfig.tileSkins[targetType];
 
-            // Sadece komþuyu deðiþtir (Kaynak sabit kalýr)
-            targetNeighbor.AnimateColorChange(targetType, targetSkin, animDuration);
+            // Hard-coded süre -> Config
+            targetNeighbor.AnimateColorChange(targetType, targetSkin, boardConfig.injectionDuration);
         }
 
-        // Animasyon süresi + StepDelay kadar bekle
-        yield return new WaitForSeconds(animDuration + boardConfig.shuffleStepDelay);
+        yield return new WaitForSeconds(boardConfig.injectionDuration + boardConfig.shuffleStepDelay);
     }
 
     // --- ALT COROUTINE: KARIÞTIRMA ---
@@ -374,21 +348,21 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
                     tile.y = y;
 
                     Vector3 targetPos = GetWorldPosition(x, y);
-                    tile.transform.DOMove(targetPos, 0.5f).SetEase(Ease.InOutQuad);
+
+                    // Hard-coded 0.5f -> Config
+                    tile.transform.DOMove(targetPos, boardConfig.shuffleMoveDuration).SetEase(Ease.InOutQuad);
                     tile.GetComponent<SpriteRenderer>().sortingOrder = (currentLevel.rows + y) * 10;
                 }
             }
         }
 
-        // Hareket süresi (0.5f) + StepDelay kadar bekle
-        yield return new WaitForSeconds(0.5f + boardConfig.shuffleStepDelay);
+        // Sadece animasyon süresi kadar bekle (Gecikme sorunu çözüldü)
+        yield return new WaitForSeconds(boardConfig.shuffleMoveDuration);
     }
 
     // --- ALT COROUTINE: FORCE MATCH ---
-    // --- GÜNCELLENMÝÞ ALT COROUTINE: RANDOM FORCE MATCH ---
     private IEnumerator ProcessForceMatch(List<Tile> allTiles)
     {
-        // 1. En az 2 tane olan bir renk bul
         int targetColor = -1;
         Dictionary<int, int> counts = new Dictionary<int, int>();
         foreach (var t in allTiles)
@@ -398,53 +372,29 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
             if (counts[t.ItemType] >= 2) { targetColor = t.ItemType; break; }
         }
 
-        // 2. Bu renkteki iki taþý bul (Taþýnacak olanlar)
         Tile tileA = allTiles.Find(t => t.ItemType == targetColor);
         Tile tileB = allTiles.FindLast(t => t.ItemType == targetColor);
 
-        // 3. Rastgele Hedef Konumlar Seç (Slot1 ve Slot2)
         Tile slot1 = null;
         Tile slot2 = null;
 
         int attempts = 0;
-        while (attempts < 50)
+        // Hard-coded 50 -> Config
+        while (attempts < boardConfig.maxCalculationAttempts)
         {
-            // Rastgele bir ana slot seç
             int randX = Random.Range(0, currentLevel.columns);
             int randY = Random.Range(0, currentLevel.rows);
             slot1 = Grid[randX, randY];
 
             if (slot1 == null) { attempts++; continue; }
 
-            // Slot1'in geçerli komþularýný bul
             List<Tile> validNeighbors = new List<Tile>();
 
-            // Sað
-            if (randX < currentLevel.columns - 1)
-            {
-                Tile t = Grid[randX + 1, randY];
-                if (t != null) validNeighbors.Add(t);
-            }
-            // Sol
-            if (randX > 0)
-            {
-                Tile t = Grid[randX - 1, randY];
-                if (t != null) validNeighbors.Add(t);
-            }
-            // Üst
-            if (randY < currentLevel.rows - 1)
-            {
-                Tile t = Grid[randX, randY + 1];
-                if (t != null) validNeighbors.Add(t);
-            }
-            // Alt
-            if (randY > 0)
-            {
-                Tile t = Grid[randX, randY - 1];
-                if (t != null) validNeighbors.Add(t);
-            }
+            if (randX < currentLevel.columns - 1) { Tile t = Grid[randX + 1, randY]; if (t != null) validNeighbors.Add(t); }
+            if (randX > 0) { Tile t = Grid[randX - 1, randY]; if (t != null) validNeighbors.Add(t); }
+            if (randY < currentLevel.rows - 1) { Tile t = Grid[randX, randY + 1]; if (t != null) validNeighbors.Add(t); }
+            if (randY > 0) { Tile t = Grid[randX, randY - 1]; if (t != null) validNeighbors.Add(t); }
 
-            // Eðer komþu bulduysak birini seç ve çýk
             if (validNeighbors.Count > 0)
             {
                 slot2 = validNeighbors[Random.Range(0, validNeighbors.Count)];
@@ -453,43 +403,31 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
             attempts++;
         }
 
-        // Fail-Safe: Eðer rastgele yer bulamazsak (çok zor ama) yine sol alta koy.
         if (slot1 == null || slot2 == null)
         {
             slot1 = Grid[0, 0];
             slot2 = Grid[0, 1];
         }
 
-        // 4. SWAP ÝÞLEMÝ VE ANÝMASYON
         if (slot1 != null && slot2 != null)
         {
-            float swapDuration = 0.5f;
+            // Hard-coded 0.5f -> Config
+            float currentSwapDuration = boardConfig.swapDuration;
 
-            // Mantýksal Swap: tileA -> slot1
             PerformLogicalSwap(tileA, slot1);
-
-            // Eðer tileB þans eseri slot1'in kendisi idiyse, 
-            // tileA ile yer deðiþtirdiði için artýk tileA'nýn eski yerindedir.
             if (tileB == slot1) tileB = tileA;
-
-            // Mantýksal Swap: tileB -> slot2
             PerformLogicalSwap(tileB, slot2);
 
-            // Görsel Animasyon (DOMove) - Yeni koordinatlara git
-            // Not: PerformLogicalSwap ile x,y deðerleri güncellendiði için 
-            // GetWorldPosition artýk yeni hedefi verir.
-            tileA.transform.DOMove(GetWorldPosition(tileA.x, tileA.y), swapDuration).SetEase(Ease.OutBack);
-            slot1.transform.DOMove(GetWorldPosition(slot1.x, slot1.y), swapDuration).SetEase(Ease.OutBack);
+            tileA.transform.DOMove(GetWorldPosition(tileA.x, tileA.y), currentSwapDuration).SetEase(Ease.OutBack);
+            slot1.transform.DOMove(GetWorldPosition(slot1.x, slot1.y), currentSwapDuration).SetEase(Ease.OutBack);
 
-            tileB.transform.DOMove(GetWorldPosition(tileB.x, tileB.y), swapDuration).SetEase(Ease.OutBack);
-            slot2.transform.DOMove(GetWorldPosition(slot2.x, slot2.y), swapDuration).SetEase(Ease.OutBack);
+            tileB.transform.DOMove(GetWorldPosition(tileB.x, tileB.y), currentSwapDuration).SetEase(Ease.OutBack);
+            slot2.transform.DOMove(GetWorldPosition(slot2.x, slot2.y), currentSwapDuration).SetEase(Ease.OutBack);
 
-            // Animasyon süresi + Delay kadar bekle
-            yield return new WaitForSeconds(swapDuration + boardConfig.shuffleStepDelay);
+            yield return new WaitForSeconds(currentSwapDuration + boardConfig.shuffleStepDelay);
         }
     }
 
-    // Yardýmcý: Sadece data deðiþimi yapar (Animasyon yok)
     private void PerformLogicalSwap(Tile t1, Tile t2)
     {
         if (t1 == t2) return;
