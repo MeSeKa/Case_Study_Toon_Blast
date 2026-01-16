@@ -12,7 +12,6 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
 
     public Tile[,] Grid { get; private set; }
 
-    // Encapsulation: Dýþarýdan okunabilir, içeriden deðiþtirilebilir.
     private bool _isProcessing = false;
     public bool IsProcessing { get { return _isProcessing; } }
 
@@ -69,50 +68,24 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
                 Grid[x, y] = newTile;
             }
         }
-        AdjustCamera(totalWidth, totalHeight);
-        UpdateBoardVisuals();
+        AdjustCamera(totalWidth, totalHeight); 
+        BoardVisualizer.UpdateAllIcons(Grid, currentLevel);
 
-        if (IsDeadlocked())
+        // ARTIK SADECE SORGULUYORUZ
+        if (DeadlockSolver.IsDeadlocked(Grid, currentLevel.columns, currentLevel.rows))
         {
             _isProcessing = true;
             StartCoroutine(ShuffleBoard());
         }
     }
 
-    // --- GÖRSEL UPDATE ---
-    private void UpdateBoardVisuals()
-    {
-        bool[,] visited = new bool[currentLevel.columns, currentLevel.rows];
-        for (int x = 0; x < currentLevel.columns; x++)
-        {
-            for (int y = 0; y < currentLevel.rows; y++)
-            {
-                Tile tile = Grid[x, y];
-                if (tile != null && !visited[x, y])
-                {
-                    List<Tile> group = MatchFinder.FindMatches(tile, Grid, currentLevel.rows, currentLevel.columns);
-                    foreach (Tile t in group) visited[t.x, t.y] = true;
-
-                    foreach (Tile member in group)
-                    {
-                        if (group.Count > currentLevel.conditionC) member.SetVisualState(3);
-                        else if (group.Count > currentLevel.conditionB) member.SetVisualState(2);
-                        else if (group.Count > currentLevel.conditionA) member.SetVisualState(1);
-                        else member.SetVisualState(0);
-                    }
-                }
-            }
-        }
-    }
-
-    // InputHandler tarafýndan çaðrýlacak metot
+    // InputHandler tarafýndan çaðrýlýr
     public void OnTileClicked(Tile clickedTile)
     {
         if (_isProcessing) return;
 
         List<Tile> connectedTiles = MatchFinder.FindMatches(clickedTile, Grid, currentLevel.rows, currentLevel.columns);
 
-        // PDF Kuralý: En az 2 blok olmalý
         if (connectedTiles.Count >= 2)
         {
             StartCoroutine(ExplodeTiles(connectedTiles));
@@ -205,9 +178,10 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         }
 
         yield return new WaitForSeconds(boardConfig.refillDuration);
-        UpdateBoardVisuals();
+        BoardVisualizer.UpdateAllIcons(Grid, currentLevel);
 
-        if (IsDeadlocked())
+        // STATIC CLASS ÇAÐRISI
+        if (DeadlockSolver.IsDeadlocked(Grid, currentLevel.columns, currentLevel.rows))
         {
             StartCoroutine(ShuffleBoard());
         }
@@ -217,124 +191,53 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         }
     }
 
-    // --- AKILLI VE SIRALI SHUFFLE SÝSTEMÝ ---
+    // --- SHUFFLE YÖNETÝMÝ (Artýk sadece Orkestra Þefi) ---
     private IEnumerator ShuffleBoard()
     {
         yield return new WaitForSeconds(boardConfig.shuffleStepDelay);
 
-        // --- FAZ 1: ANALÝZ ---
-        Dictionary<int, int> colorCounts = new Dictionary<int, int>();
         List<Tile> allTiles = new List<Tile>();
+        foreach (var t in Grid) if (t != null) allTiles.Add(t);
 
-        for (int x = 0; x < currentLevel.columns; x++)
-        {
-            for (int y = 0; y < currentLevel.rows; y++)
-            {
-                if (Grid[x, y] != null)
-                {
-                    allTiles.Add(Grid[x, y]);
-                    if (!colorCounts.ContainsKey(Grid[x, y].ItemType)) colorCounts[Grid[x, y].ItemType] = 0;
-                    colorCounts[Grid[x, y].ItemType]++;
-                }
-            }
-        }
+        // KONTROL 1: Matematiksel olarak çözülebilir mi? (En az 2 ayný renk var mý?)
+        bool isSolvable = DeadlockSolver.IsSolvable(allTiles);
 
-        bool isSolvable = false;
-        foreach (var count in colorCounts.Values) if (count >= 2) { isSolvable = true; break; }
-
-        // --- FAZ 2: RENK ENJEKSÝYONU ---
+        // FAZ 1: RENK ENJEKSÝYONU (Sadece çözüm ÝMKANSIZSA çalýþýr)
         if (!isSolvable)
         {
             if (allTiles.Count >= 2)
             {
-                yield return StartCoroutine(ProcessInjection(allTiles));
+                Tile source, target;
+                bool foundInjection = DeadlockSolver.TryFindInjectionCandidates(Grid, currentLevel.columns, currentLevel.rows, allTiles, boardConfig.maxCalculationAttempts, out source, out target);
 
-                if (!IsDeadlocked())
+                if (foundInjection)
                 {
-                    UpdateBoardVisuals();
-                    _isProcessing = false;
-                    yield break;
+                    int targetType = source.ItemType;
+                    TileSkin targetSkin = boardConfig.tileSkins[targetType];
+                    target.AnimateColorChange(targetType, targetSkin, boardConfig.injectionDuration);
+
+                    yield return new WaitForSeconds(boardConfig.injectionDuration + boardConfig.shuffleStepDelay);
+
+                    // Optimizasyon: Boyama iþlemi þans eseri sorunu çözdü mü?
+                    if (!DeadlockSolver.IsDeadlocked(Grid, currentLevel.columns, currentLevel.rows))
+                    {
+                        BoardVisualizer.UpdateAllIcons(Grid, currentLevel);
+                        _isProcessing = false;
+                        yield break; // Sorun çözüldü, karýþtýrmaya gerek kalmadý.
+                    }
                 }
             }
             else
             {
+                // Tahtada 2 taþ bile yoksa yapacak bir þey yok.
                 _isProcessing = false;
                 yield break;
             }
         }
 
-        // --- FAZ 3: KARIÞTIRMA ---
-        yield return StartCoroutine(ProcessShuffle(allTiles));
+        // FAZ 2: KARIÞTIRMA (Tahta çözülebilir durumda ama kilitliyse burasý çalýþýr)
+        DeadlockSolver.ShuffleList(allTiles); // Listeyi matematiksel karýþtýr
 
-        // --- FAZ 4: FORCE MATCH ---
-        if (IsDeadlocked())
-        {
-            yield return StartCoroutine(ProcessForceMatch(allTiles));
-        }
-
-        UpdateBoardVisuals();
-        _isProcessing = false;
-    }
-
-    // --- ALT COROUTINE: RENK ENJEKSÝYONU ---
-    private IEnumerator ProcessInjection(List<Tile> allTiles)
-    {
-        Tile sourceTile = null;
-        Tile targetNeighbor = null;
-
-        int attempts = 0;
-
-        // Gerek yok ta ne olur ne olmaz denerken verdiðim sürelerden dolayý anlýk olarak boþ olan bir þeye fln denk gelirse belki diye
-        while (attempts < boardConfig.maxCalculationAttempts)
-        {
-            sourceTile = allTiles[Random.Range(0, allTiles.Count)];
-            List<Tile> validNeighbors = new List<Tile>();
-
-            // 4 Yöne Bak
-            if (sourceTile.x < currentLevel.columns - 1) { Tile t = Grid[sourceTile.x + 1, sourceTile.y]; if (t != null) validNeighbors.Add(t); }
-            if (sourceTile.x > 0) { Tile t = Grid[sourceTile.x - 1, sourceTile.y]; if (t != null) validNeighbors.Add(t); }
-            if (sourceTile.y < currentLevel.rows - 1) { Tile t = Grid[sourceTile.x, sourceTile.y + 1]; if (t != null) validNeighbors.Add(t); }
-            if (sourceTile.y > 0) { Tile t = Grid[sourceTile.x, sourceTile.y - 1]; if (t != null) validNeighbors.Add(t); }
-
-            if (validNeighbors.Count > 0)
-            {
-                targetNeighbor = validNeighbors[Random.Range(0, validNeighbors.Count)];
-                break;
-            }
-            attempts++;
-        }
-
-        if (targetNeighbor == null && allTiles.Count >= 2)
-        {
-            sourceTile = allTiles[0];
-            targetNeighbor = allTiles[1];
-        }
-
-        if (sourceTile != null && targetNeighbor != null)
-        {
-            int targetType = sourceTile.ItemType;
-            TileSkin targetSkin = boardConfig.tileSkins[targetType];
-
-            // Hard-coded süre -> Config
-            targetNeighbor.AnimateColorChange(targetType, targetSkin, boardConfig.injectionDuration);
-        }
-
-        yield return new WaitForSeconds(boardConfig.injectionDuration + boardConfig.shuffleStepDelay);
-    }
-
-    // --- ALT COROUTINE: KARIÞTIRMA ---
-    private IEnumerator ProcessShuffle(List<Tile> allTiles)
-    {
-        // Matematiksel karýþtýrma
-        for (int i = 0; i < allTiles.Count; i++)
-        {
-            Tile temp = allTiles[i];
-            int rnd = Random.Range(i, allTiles.Count);
-            allTiles[i] = allTiles[rnd];
-            allTiles[rnd] = temp;
-        }
-
-        // Görsel yerleþtirme
         int idx = 0;
         for (int x = 0; x < currentLevel.columns; x++)
         {
@@ -344,88 +247,40 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
                 {
                     Tile tile = allTiles[idx++];
                     Grid[x, y] = tile;
-                    tile.x = x;
-                    tile.y = y;
+                    tile.x = x; tile.y = y;
 
                     Vector3 targetPos = GetWorldPosition(x, y);
-
-                    // Hard-coded 0.5f -> Config
                     tile.transform.DOMove(targetPos, boardConfig.shuffleMoveDuration).SetEase(Ease.InOutQuad);
                     tile.GetComponent<SpriteRenderer>().sortingOrder = (currentLevel.rows + y) * 10;
                 }
             }
         }
-
-        // Sadece animasyon süresi kadar bekle (Gecikme sorunu çözüldü)
         yield return new WaitForSeconds(boardConfig.shuffleMoveDuration);
-    }
 
-    // --- ALT COROUTINE: FORCE MATCH ---
-    private IEnumerator ProcessForceMatch(List<Tile> allTiles)
-    {
-        int targetColor = -1;
-        Dictionary<int, int> counts = new Dictionary<int, int>();
-        foreach (var t in allTiles)
+        // FAZ 3: FORCE MATCH (Karýþtýrma da yetmediyse, zorla yan yana koy)
+        if (DeadlockSolver.IsDeadlocked(Grid, currentLevel.columns, currentLevel.rows))
         {
-            if (!counts.ContainsKey(t.ItemType)) counts[t.ItemType] = 0;
-            counts[t.ItemType]++;
-            if (counts[t.ItemType] >= 2) { targetColor = t.ItemType; break; }
-        }
-
-        Tile tileA = allTiles.Find(t => t.ItemType == targetColor);
-        Tile tileB = allTiles.FindLast(t => t.ItemType == targetColor);
-
-        Tile slot1 = null;
-        Tile slot2 = null;
-
-        int attempts = 0;
-        // Hard-coded 50 -> Config
-        while (attempts < boardConfig.maxCalculationAttempts)
-        {
-            int randX = Random.Range(0, currentLevel.columns);
-            int randY = Random.Range(0, currentLevel.rows);
-            slot1 = Grid[randX, randY];
-
-            if (slot1 == null) { attempts++; continue; }
-
-            List<Tile> validNeighbors = new List<Tile>();
-
-            if (randX < currentLevel.columns - 1) { Tile t = Grid[randX + 1, randY]; if (t != null) validNeighbors.Add(t); }
-            if (randX > 0) { Tile t = Grid[randX - 1, randY]; if (t != null) validNeighbors.Add(t); }
-            if (randY < currentLevel.rows - 1) { Tile t = Grid[randX, randY + 1]; if (t != null) validNeighbors.Add(t); }
-            if (randY > 0) { Tile t = Grid[randX, randY - 1]; if (t != null) validNeighbors.Add(t); }
-
-            if (validNeighbors.Count > 0)
+            Tile tileA, tileB, slot1, slot2;
+            if (DeadlockSolver.TryFindForceMatchCandidates(Grid, currentLevel.columns, currentLevel.rows, allTiles, boardConfig.maxCalculationAttempts, 
+                out tileA, out tileB, out slot1, out slot2))
             {
-                slot2 = validNeighbors[Random.Range(0, validNeighbors.Count)];
-                break;
+                float currentSwapDuration = boardConfig.swapDuration;
+
+                PerformLogicalSwap(tileA, slot1);
+                if (tileB == slot1) tileB = tileA;
+                PerformLogicalSwap(tileB, slot2);
+
+                tileA.transform.DOMove(GetWorldPosition(tileA.x, tileA.y), currentSwapDuration).SetEase(Ease.OutBack);
+                slot1.transform.DOMove(GetWorldPosition(slot1.x, slot1.y), currentSwapDuration).SetEase(Ease.OutBack);
+                tileB.transform.DOMove(GetWorldPosition(tileB.x, tileB.y), currentSwapDuration).SetEase(Ease.OutBack);
+                slot2.transform.DOMove(GetWorldPosition(slot2.x, slot2.y), currentSwapDuration).SetEase(Ease.OutBack);
+
+                yield return new WaitForSeconds(currentSwapDuration + boardConfig.shuffleStepDelay);
             }
-            attempts++;
         }
 
-        if (slot1 == null || slot2 == null)
-        {
-            slot1 = Grid[0, 0];
-            slot2 = Grid[0, 1];
-        }
-
-        if (slot1 != null && slot2 != null)
-        {
-            // Hard-coded 0.5f -> Config
-            float currentSwapDuration = boardConfig.swapDuration;
-
-            PerformLogicalSwap(tileA, slot1);
-            if (tileB == slot1) tileB = tileA;
-            PerformLogicalSwap(tileB, slot2);
-
-            tileA.transform.DOMove(GetWorldPosition(tileA.x, tileA.y), currentSwapDuration).SetEase(Ease.OutBack);
-            slot1.transform.DOMove(GetWorldPosition(slot1.x, slot1.y), currentSwapDuration).SetEase(Ease.OutBack);
-
-            tileB.transform.DOMove(GetWorldPosition(tileB.x, tileB.y), currentSwapDuration).SetEase(Ease.OutBack);
-            slot2.transform.DOMove(GetWorldPosition(slot2.x, slot2.y), currentSwapDuration).SetEase(Ease.OutBack);
-
-            yield return new WaitForSeconds(currentSwapDuration + boardConfig.shuffleStepDelay);
-        }
+        BoardVisualizer.UpdateAllIcons(Grid, currentLevel);
+        _isProcessing = false;
     }
 
     private void PerformLogicalSwap(Tile t1, Tile t2)
@@ -437,21 +292,6 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         t2.x = tempX; t2.y = tempY;
         t1.GetComponent<SpriteRenderer>().sortingOrder = (currentLevel.rows + t1.y) * 10;
         t2.GetComponent<SpriteRenderer>().sortingOrder = (currentLevel.rows + t2.y) * 10;
-    }
-
-    private bool IsDeadlocked()
-    {
-        for (int x = 0; x < currentLevel.columns; x++)
-            for (int y = 0; y < currentLevel.rows; y++)
-            {
-                Tile t = Grid[x, y];
-                if (t != null)
-                {
-                    if (x < currentLevel.columns - 1) { Tile r = Grid[x + 1, y]; if (r != null && r.ItemType == t.ItemType) return false; }
-                    if (y < currentLevel.rows - 1) { Tile up = Grid[x, y + 1]; if (up != null && up.ItemType == t.ItemType) return false; }
-                }
-            }
-        return true;
     }
 
     private void AdjustCamera(float boardWidth, float boardHeight)
