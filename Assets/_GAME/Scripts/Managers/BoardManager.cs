@@ -32,10 +32,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
     private void InitializePool()
     {
         _pool = new ObjectPool<Tile>(
-            createFunc: () =>
-            {
-                return Instantiate(boardConfig.tilePrefab, transform).GetComponent<Tile>();
-            },
+            createFunc: () => Instantiate(boardConfig.tilePrefab, transform).GetComponent<Tile>(),
             actionOnGet: (tile) => tile.gameObject.SetActive(true),
             actionOnRelease: (tile) => tile.gameObject.SetActive(false),
             actionOnDestroy: (tile) => Destroy(tile.gameObject),
@@ -47,11 +44,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
     private void Update()
     {
         if (_isProcessing) return;
-
-        if (Pointer.current != null && Pointer.current.press.wasPressedThisFrame)
-        {
-            HandleInput();
-        }
+        if (Pointer.current != null && Pointer.current.press.wasPressedThisFrame) HandleInput();
     }
 
     private void HandleInput()
@@ -66,11 +59,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
             if (clickedTile != null)
             {
                 List<Tile> connectedTiles = MatchFinder.FindMatches(clickedTile, Grid, currentLevel.rows, currentLevel.columns);
-
-                if (connectedTiles.Count >= 2)
-                {
-                    StartCoroutine(ExplodeTiles(connectedTiles));
-                }
+                if (connectedTiles.Count >= 2) StartCoroutine(ExplodeTiles(connectedTiles));
             }
         }
     }
@@ -78,7 +67,6 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
     private void GenerateBoard()
     {
         Grid = new Tile[currentLevel.columns, currentLevel.rows];
-
         float totalWidth = (currentLevel.columns * boardConfig.tileSize) + ((currentLevel.columns - 1) * boardConfig.padding);
         float totalHeight = (currentLevel.rows * boardConfig.tileSize) + ((currentLevel.rows - 1) * boardConfig.padding);
         Vector2 startPos = new Vector2(-totalWidth / 2f + boardConfig.tileSize / 2f, -totalHeight / 2f + boardConfig.tileSize / 2f);
@@ -87,32 +75,56 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         {
             for (int y = 0; y < currentLevel.rows; y++)
             {
-                int randomType = Random.Range(0, currentLevel.colorCount);
-                Tile newTile = _pool.Get();
+                // Rastgele bir "Skin" seçiyoruz
+                int randomType = Random.Range(0, boardConfig.tileSkins.Count);
+                TileSkin selectedSkin = boardConfig.tileSkins[randomType];
 
+                Tile newTile = _pool.Get();
                 float xPos = startPos.x + (x * (boardConfig.tileSize + boardConfig.padding));
                 float yPos = startPos.y + (y * (boardConfig.tileSize + boardConfig.padding));
 
                 newTile.transform.position = new Vector2(xPos, yPos);
                 int sortingOrder = (currentLevel.rows + y) * 10;
-                Sprite sprite = boardConfig.iconSprites.Length > randomType ? boardConfig.iconSprites[randomType] : null;
 
-                newTile.Initialize(x, y, randomType, sprite, boardConfig.tileSize, sortingOrder);
+                // Initialize'a artýk "selectedSkin" gönderiyoruz
+                newTile.Initialize(x, y, randomType, selectedSkin, boardConfig.tileSize, sortingOrder);
                 Grid[x, y] = newTile;
             }
         }
         AdjustCamera(totalWidth, totalHeight);
+        UpdateBoardVisuals(); // Baþlangýçta gruplarý kontrol et
     }
 
-    // --- 1. PATLATMA ---
+    // --- GÖRSEL GÜNCELLEME (YENÝ) ---
+    private void UpdateBoardVisuals()
+    {
+        bool[,] visited = new bool[currentLevel.columns, currentLevel.rows];
+
+        for (int x = 0; x < currentLevel.columns; x++)
+        {
+            for (int y = 0; y < currentLevel.rows; y++)
+            {
+                Tile tile = Grid[x, y];
+                if (tile != null && !visited[x, y])
+                {
+                    List<Tile> group = MatchFinder.FindMatches(tile, Grid, currentLevel.rows, currentLevel.columns);
+                    foreach (Tile t in group) visited[t.x, t.y] = true;
+
+                    // Her taþa grubun büyüklüðünü söylüyoruz
+                    // Taþ, kendi rengine göre hangi A, B, C resmini koyacaðýný kendi biliyor.
+                    foreach (Tile member in group)
+                    {
+                        member.UpdateVisualState(group.Count);
+                    }
+                }
+            }
+        }
+    }
+
     private IEnumerator ExplodeTiles(List<Tile> matches)
     {
         _isProcessing = true;
-
-        foreach (Tile tile in matches)
-        {
-            Grid[tile.x, tile.y] = null;
-        }
+        foreach (Tile tile in matches) Grid[tile.x, tile.y] = null;
 
         foreach (Tile tile in matches)
         {
@@ -125,7 +137,6 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         StartCoroutine(ApplyGravity());
     }
 
-    // --- 2. YERÇEKÝMÝ ---
     private IEnumerator ApplyGravity()
     {
         for (int x = 0; x < currentLevel.columns; x++)
@@ -145,7 +156,6 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
 
                         float targetX = -((currentLevel.columns * boardConfig.tileSize + (currentLevel.columns - 1) * boardConfig.padding) / 2f) + boardConfig.tileSize / 2f + x * (boardConfig.tileSize + boardConfig.padding);
                         float targetY = -((currentLevel.rows * boardConfig.tileSize + (currentLevel.rows - 1) * boardConfig.padding) / 2f) + boardConfig.tileSize / 2f + writeY * (boardConfig.tileSize + boardConfig.padding);
-
                         int newSortingOrder = (currentLevel.rows + writeY) * 10;
                         tile.GetComponent<SpriteRenderer>().sortingOrder = newSortingOrder;
 
@@ -157,21 +167,12 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
             }
         }
 
-        // --- DEÐÝÞÝKLÝK BURADA: REFILL DELAY ---
-        // Eðer config'de bir gecikme varsa bekle, yoksa sadece frame atla.
-        if (boardConfig.refillDelay > 0f)
-        {
-            yield return new WaitForSeconds(boardConfig.refillDelay);
-        }
-        else
-        {
-            yield return null;
-        }
+        if (boardConfig.refillDelay > 0f) yield return new WaitForSeconds(boardConfig.refillDelay);
+        else yield return null;
 
         StartCoroutine(FillBoard());
     }
 
-    // --- 3. REFILL ---
     private IEnumerator FillBoard()
     {
         float startOffsetY = -((currentLevel.rows * boardConfig.tileSize + (currentLevel.rows - 1) * boardConfig.padding) / 2f) + boardConfig.tileSize / 2f;
@@ -180,25 +181,26 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         for (int x = 0; x < currentLevel.columns; x++)
         {
             int newTileCountInColumn = 0;
-
             for (int y = 0; y < currentLevel.rows; y++)
             {
                 if (Grid[x, y] == null)
                 {
-                    int randomType = Random.Range(0, currentLevel.colorCount);
-                    Tile newTile = _pool.Get();
+                    // YENÝ: Random Skin seçimi
+                    int randomType = Random.Range(0, boardConfig.tileSkins.Count);
+                    TileSkin selectedSkin = boardConfig.tileSkins[randomType];
 
+                    Tile newTile = _pool.Get();
                     float targetX = -((currentLevel.columns * boardConfig.tileSize + (currentLevel.columns - 1) * boardConfig.padding) / 2f) + boardConfig.tileSize / 2f + x * (boardConfig.tileSize + boardConfig.padding);
                     float targetY = startOffsetY + y * (boardConfig.tileSize + boardConfig.padding);
-
                     float spawnY = boardTopEdge + (newTileCountInColumn * (boardConfig.tileSize + boardConfig.padding));
+
                     newTile.transform.position = new Vector2(targetX, spawnY);
                     newTileCountInColumn++;
 
                     int sortingOrder = (currentLevel.rows + y) * 10;
-                    Sprite sprite = boardConfig.iconSprites.Length > randomType ? boardConfig.iconSprites[randomType] : null;
 
-                    newTile.Initialize(x, y, randomType, sprite, boardConfig.tileSize, sortingOrder);
+                    // Initialize çaðrýsý güncellendi
+                    newTile.Initialize(x, y, randomType, selectedSkin, boardConfig.tileSize, sortingOrder);
                     Grid[x, y] = newTile;
 
                     newTile.transform.DOMove(new Vector2(targetX, targetY), boardConfig.refillDuration)
@@ -208,6 +210,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
         }
 
         yield return new WaitForSeconds(boardConfig.refillDuration);
+        UpdateBoardVisuals(); // Taþlar oturunca görselleri tekrar güncelle
         _isProcessing = false;
     }
 

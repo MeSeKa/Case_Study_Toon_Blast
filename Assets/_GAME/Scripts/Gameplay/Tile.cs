@@ -1,40 +1,39 @@
 using UnityEngine;
-using UnityEngine.UI; // UI kullanacaksan (SpriteRenderer ise burayý sil)
+using DG.Tweening;
 
 public class Tile : MonoBehaviour
 {
     public int x;
     public int y;
-    
-    // Bloðun hangi tip (renk) olduðunu tutar (0: Mavi, 1: Kýrmýzý vb.)
-    public int ItemType; 
+    public int ItemType; // Renk ID'si (0: Blue, 1: Green vs.)
 
-    // Görseli deðiþtirmek için SpriteRenderer referansý
-    // Eðer UI (Canvas) üzerinde çalýþýyorsan 'Image', World Space ise 'SpriteRenderer' kullan.
-    // Þimdilik World Space (SpriteRenderer) varsayýyorum.
-    [SerializeField] private SpriteRenderer _renderer;
+    private SpriteRenderer _renderer;
+    private TileSkin _currentSkin; // Bu taþýn sahip olduðu renk seti
 
-    // Týklandýðýnda BoardManager'a haber vermek için bir fonksiyon
-    // Bunu ileride Input sistemine baðlayacaðýz.
-    // Assets/_Game/Scripts/Gameplay/Tile.cs
+    private void Awake()
+    {
+        _renderer = GetComponent<SpriteRenderer>();
+    }
 
-    public void Initialize(int x, int y, int itemType, Sprite sprite, float targetSize, int sortingOrder) // Yeni parametre
+    // Initialize artýk direkt TileSkin alýyor
+    public void Initialize(int x, int y, int itemType, TileSkin skin, float targetSize, int sortingOrder)
     {
         this.x = x;
         this.y = y;
         this.ItemType = itemType;
+        this._currentSkin = skin; // Skin'i hafýzaya at
 
-        if (sprite != null)
+        // Baþlangýçta default resmi koy
+        _renderer.sprite = skin.defaultSprite;
+        _renderer.sortingOrder = sortingOrder;
+
+        // Auto-Fit (Daha önce yazdýðýmýz kod)
+        transform.localScale = Vector3.one;
+        if (_renderer.sprite != null)
         {
-            _renderer.sprite = sprite;
-            _renderer.sortingOrder = sortingOrder;
-
-            // --- AUTO FIT ---
-            transform.localScale = Vector3.one;
             float spriteWidth = _renderer.bounds.size.x;
             float spriteHeight = _renderer.bounds.size.y;
             float maxDimension = Mathf.Max(spriteWidth, spriteHeight);
-
             if (maxDimension > 0)
             {
                 float newScale = targetSize / maxDimension;
@@ -43,5 +42,31 @@ public class Tile : MonoBehaviour
         }
 
         name = $"Tile_{x}_{y}";
+    }
+
+    // YENÝ METOD: Dýþarýdan sadece "Durum A olsun" diyoruz, o kendi rengini buluyor
+    public void UpdateVisualState(int groupCount)
+    {
+        if (groupCount >= 9)
+        {
+            if (_renderer.sprite != _currentSkin.stateCSprite)
+                _renderer.sprite = _currentSkin.stateCSprite;
+        }
+        else if (groupCount >= 7)
+        {
+            if (_renderer.sprite != _currentSkin.stateBSprite)
+                _renderer.sprite = _currentSkin.stateBSprite;
+        }
+        else if (groupCount >= 5)
+        {
+            if (_renderer.sprite != _currentSkin.stateASprite)
+                _renderer.sprite = _currentSkin.stateASprite;
+        }
+        else
+        {
+            // Grup küçükse veya tekse Default haline dön
+            if (_renderer.sprite != _currentSkin.defaultSprite)
+                _renderer.sprite = _currentSkin.defaultSprite;
+        }
     }
 }

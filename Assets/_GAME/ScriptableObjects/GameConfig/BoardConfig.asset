@@ -15,13 +15,37 @@ MonoBehaviour:
   tileSize: 1
   padding: -0.125
   tilePrefab: {fileID: 5415765851769724594, guid: 4b39139223d568744b66ec1f918b76ef, type: 3}
-  iconSprites:
-  - {fileID: -4624011131410558117, guid: 0a4c04627820ee1459bc2ec311d62aa4, type: 3}
-  - {fileID: -7364823422338184377, guid: 7f605f7a6ed92eb4ea5ce25164283835, type: 3}
-  - {fileID: 742919511911846744, guid: fcb88c3f73c46d543bd999afb9bf315b, type: 3}
-  - {fileID: 8161472552560778960, guid: 402291efeecdf8844b13e431bac92ebb, type: 3}
-  - {fileID: 887387325851772620, guid: ff0dc5c6cb032bb4e8fbb5679e94e343, type: 3}
-  - {fileID: 7985042018138347892, guid: ac3ac3044df322440872a2b1a4dcdaab, type: 3}
+  tileSkins:
+  - name: Blue
+    defaultSprite: {fileID: 21300000, guid: 0a4c04627820ee1459bc2ec311d62aa4, type: 3}
+    stateASprite: {fileID: 21300000, guid: 2881a76a99252774ba211eaa0fb22a53, type: 3}
+    stateBSprite: {fileID: 21300000, guid: 1644ac0bd16842e458bba8536d489a96, type: 3}
+    stateCSprite: {fileID: 21300000, guid: d971203bd01ad474d9f9a0f986cab099, type: 3}
+  - name: Green
+    defaultSprite: {fileID: 21300000, guid: 7f605f7a6ed92eb4ea5ce25164283835, type: 3}
+    stateASprite: {fileID: 21300000, guid: f3e72ad5abf4ee54fab49dd8a60e47bc, type: 3}
+    stateBSprite: {fileID: 21300000, guid: e00faecdbc5954d4ba28b398de0c104f, type: 3}
+    stateCSprite: {fileID: 21300000, guid: f6e405d93f5eb1d42b6194848f30c0a1, type: 3}
+  - name: Purple
+    defaultSprite: {fileID: 21300000, guid: 402291efeecdf8844b13e431bac92ebb, type: 3}
+    stateASprite: {fileID: 21300000, guid: 80185f74435345d48b57284662d81e22, type: 3}
+    stateBSprite: {fileID: 21300000, guid: 184791d00241880498d0698b404950aa, type: 3}
+    stateCSprite: {fileID: 21300000, guid: 5fe6cf8234936af489384c0a8ba3d3ab, type: 3}
+  - name: Pink
+    defaultSprite: {fileID: 21300000, guid: fcb88c3f73c46d543bd999afb9bf315b, type: 3}
+    stateASprite: {fileID: 21300000, guid: cd4f0d2c21314444caa7bb0e71073c88, type: 3}
+    stateBSprite: {fileID: 21300000, guid: 8f9efe569b14a824b8261008329a4461, type: 3}
+    stateCSprite: {fileID: 21300000, guid: 520df251d2350ed498598295f6c7bb1e, type: 3}
+  - name: Red
+    defaultSprite: {fileID: 21300000, guid: ff0dc5c6cb032bb4e8fbb5679e94e343, type: 3}
+    stateASprite: {fileID: 21300000, guid: e926b7b4414aaa04ab0c453dc149d1c1, type: 3}
+    stateBSprite: {fileID: 21300000, guid: d59900d9dc62944489ee69433c8a1a93, type: 3}
+    stateCSprite: {fileID: 21300000, guid: bbf4b25d743e9344497546ceaf56725c, type: 3}
+  - name: Yellow
+    defaultSprite: {fileID: 21300000, guid: ac3ac3044df322440872a2b1a4dcdaab, type: 3}
+    stateASprite: {fileID: 21300000, guid: 870b1022136c2a04697c73d060fa97de, type: 3}
+    stateBSprite: {fileID: 21300000, guid: 3421a2ce16985dd4dbe70b25985b56ba, type: 3}
+    stateCSprite: {fileID: 21300000, guid: 9b332e7aebe1e334088323a049e962f1, type: 3}
   poolDefaultSize: 100
   poolMaxSize: 300
   explodeDuration: 0.3
