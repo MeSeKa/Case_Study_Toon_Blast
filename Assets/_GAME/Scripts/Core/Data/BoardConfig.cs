@@ -31,6 +31,10 @@ public class BoardConfig : ScriptableObject
     public float refillDuration = 0.4f;
     public Ease refillEase = Ease.OutBack;
     [Range(0f, 2f)] public float refillOvershoot = 0.85f;
+
+    [Header("Shuffle Settings")]
+    [Tooltip("Karýþtýrma adýmlarý arasýndaki bekleme süresi (Renk deðiþimi -> Karýþma -> Swap)")]
+    public float shuffleStepDelay = 0.5f; // Her adýmda yarým saniye beklesin
 }
 
 // Bu struct sayesinde Inspector'da her rengi ayrý ayrý paketleyebileceksin

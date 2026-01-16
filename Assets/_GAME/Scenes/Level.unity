@@ -370,7 +370,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BoardManager
   boardConfig: {fileID: 11400000, guid: 4382bc3052bf9ac4688b619f69baa941, type: 2}
-  currentLevel: {fileID: 11400000, guid: fd74eb936a6ffe246ac59465cfcf0e18, type: 2}
+  currentLevel: {fileID: 11400000, guid: 86fb002b3d1868c499532909258592be, type: 2}
 --- !u!4 &983967244
 Transform:
   m_ObjectHideFlags: 0
