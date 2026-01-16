@@ -13,6 +13,7 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
 
     public Tile[,] Grid { get; private set; }
     private bool _isProcessing = false;
+    public bool IsProcessing { get { return _isProcessing; } }
     private ObjectPool<Tile> _pool;
 
     public override void Awake()
@@ -39,29 +40,6 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
             defaultCapacity: boardConfig.poolDefaultSize,
             maxSize: boardConfig.poolMaxSize
         );
-    }
-
-    private void Update()
-    {
-        if (_isProcessing) return;
-        if (Pointer.current != null && Pointer.current.press.wasPressedThisFrame) HandleInput();
-    }
-
-    private void HandleInput()
-    {
-        Vector2 pointerPos = Pointer.current.position.ReadValue();
-        Vector2 worldPos = Camera.main.ScreenToWorldPoint(pointerPos);
-        RaycastHit2D hit = Physics2D.Raycast(worldPos, Vector2.zero);
-
-        if (hit.collider != null)
-        {
-            Tile clickedTile = hit.collider.GetComponent<Tile>();
-            if (clickedTile != null)
-            {
-                List<Tile> connectedTiles = MatchFinder.FindMatches(clickedTile, Grid, currentLevel.rows, currentLevel.columns);
-                if (connectedTiles.Count >= 2) StartCoroutine(ExplodeTiles(connectedTiles));
-            }
-        }
     }
 
     private void GenerateBoard()
@@ -122,6 +100,18 @@ public class BoardManager : MonoBehaviourSingletonSceneOnly<BoardManager>
                     }
                 }
             }
+        }
+    }
+    public void OnTileClicked(Tile clickedTile)
+    {
+        if (_isProcessing) return;
+
+        List<Tile> connectedTiles = MatchFinder.FindMatches(clickedTile, Grid, currentLevel.rows, currentLevel.columns);
+
+        // PDF Kuralý: En az 2 blok olmalý [cite: 11]
+        if (connectedTiles.Count >= 2)
+        {
+            StartCoroutine(ExplodeTiles(connectedTiles));
         }
     }
 
