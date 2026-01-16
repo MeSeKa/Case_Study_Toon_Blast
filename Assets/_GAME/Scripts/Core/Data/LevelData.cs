@@ -15,18 +15,4 @@ public class LevelData : ScriptableObject
     public int conditionA = 4;
     public int conditionB = 7;
     public int conditionC = 9;
-
-    [Header("Visual Layout (Görsel Yerleþim)")]
-    [Tooltip("Her bir karenin boyutu (Scale)")]
-    public float tileSize = 1.0f;
-
-    [Tooltip("Kareler arasýndaki boþluk mesafesi")]
-    public float padding = 0.1f;
-
-    [Header("Performance & Optimization (Havuz Ayarlarý)")]
-    [Tooltip("Oyun açýldýðýnda hafýzada hazýr bekletilecek obje sayýsý")]
-    public int poolDefaultSize = 100;
-
-    [Tooltip("Havuzun çýkabileceði maksimum obje sayýsý")]
-    public int poolMaxSize = 300;
 }

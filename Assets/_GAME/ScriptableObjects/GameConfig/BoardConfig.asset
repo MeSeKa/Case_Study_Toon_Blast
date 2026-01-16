@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: BoardConfig
   m_EditorClassIdentifier: Assembly-CSharp::BoardConfig
   tileSize: 1
-  padding: -0.15
+  padding: -0.125
   tilePrefab: {fileID: 5415765851769724594, guid: 4b39139223d568744b66ec1f918b76ef, type: 3}
   iconSprites:
   - {fileID: -4624011131410558117, guid: 0a4c04627820ee1459bc2ec311d62aa4, type: 3}
@@ -24,3 +24,9 @@ MonoBehaviour:
   - {fileID: 7985042018138347892, guid: ac3ac3044df322440872a2b1a4dcdaab, type: 3}
   poolDefaultSize: 100
   poolMaxSize: 300
+  explodeDuration: 0.2
+  explodeEase: 26
+  fallDuration: 0.4
+  fallEase: 30
+  refillDuration: 0.4
+  refillEase: 30

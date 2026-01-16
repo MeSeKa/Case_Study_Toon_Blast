@@ -18,7 +18,7 @@ public class Tile : MonoBehaviour
     // Bunu ileride Input sistemine baðlayacaðýz.
     // Assets/_Game/Scripts/Gameplay/Tile.cs
 
-    public void Initialize(int x, int y, int itemType, Sprite sprite, float targetSize) // targetSize parametresi eklendi
+    public void Initialize(int x, int y, int itemType, Sprite sprite, float targetSize, int sortingOrder) // Yeni parametre
     {
         this.x = x;
         this.y = y;
@@ -27,27 +27,18 @@ public class Tile : MonoBehaviour
         if (sprite != null)
         {
             _renderer.sprite = sprite;
+            _renderer.sortingOrder = sortingOrder;
 
-            // --- AUTO FIT (OTOMATÝK SIÐDIRMA) ---
-            // 1. Önce scale'i sýfýrla ki orijinal boyutu ölçebilelim
+            // --- AUTO FIT ---
             transform.localScale = Vector3.one;
+            float spriteWidth = _renderer.bounds.size.x;
+            float spriteHeight = _renderer.bounds.size.y;
+            float maxDimension = Mathf.Max(spriteWidth, spriteHeight);
 
-            // 2. Resmin þu anki dünya boyutunu (Renderer Bounds) al
-            // Eðer sprite null ise hata vermesin diye kontrol ediyoruz
-            if (_renderer.sprite != null)
+            if (maxDimension > 0)
             {
-                float spriteWidth = _renderer.bounds.size.x;
-                float spriteHeight = _renderer.bounds.size.y;
-
-                // 3. Hangisi büyükse (en veya boy) onu baz alarak küçültme oranýný bul
-                float maxDimension = Mathf.Max(spriteWidth, spriteHeight);
-
-                // Eðer resim zaten istediðimiz boyuttaysa iþlem yapma (0'a bölme hatasý olmasýn)
-                if (maxDimension > 0)
-                {
-                    float newScale = targetSize / maxDimension;
-                    transform.localScale = Vector3.one * newScale;
-                }
+                float newScale = targetSize / maxDimension;
+                transform.localScale = Vector3.one * newScale;
             }
         }
 
