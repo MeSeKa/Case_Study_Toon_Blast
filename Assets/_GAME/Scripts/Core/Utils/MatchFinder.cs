@@ -1,62 +1,70 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// MonoBehaviour deðil, statik bir yardýmcý sýnýf
 public static class MatchFinder
 {
-    // BoardManager'daki Grid'i parametre olarak alýyoruz
+    // --- OPTÝMÝZASYON: Statik Bufferlar ---
+    // Bu listeleri her seferinde yeniden oluþturmak yerine (new),
+    // temizleyip (Clear) tekrar kullanacaðýz.
+    // PDF'te max tahta boyutu 10x10 olduðu için kapasiteleri baþtan veriyoruz[cite: 12].
+
+    private static readonly Queue<Tile> _searchQueue = new Queue<Tile>(100);
+    private static readonly HashSet<Tile> _visited = new HashSet<Tile>();
+
+    // Yönleri statik yapýyoruz, her seferinde new array oluþmasýn.
+    private static readonly Vector2Int[] _directions =
+    {
+        Vector2Int.right, Vector2Int.left, Vector2Int.up, Vector2Int.down
+    };
+
     public static List<Tile> FindMatches(Tile startTile, Tile[,] grid, int rows, int columns)
     {
+        // 1. Her çaðrýda yeni liste oluþturmak yerine, dönülecek sonucu oluþturuyoruz.
+        // Not: Sonuç listesini 'static' yapamayýz çünkü Coroutine'ler bunu kullanýrken
+        // baþka bir iþlem listeyi temizleyebilir. Sadece "iþlem araçlarýný" static yapýyoruz.
         List<Tile> matches = new List<Tile>();
 
-        bool[,] visited = new bool[columns, rows];
-        Queue<Tile> tilesToCheck = new Queue<Tile>();
+        // 2. Bufferlarý Temizle (Reset)
+        _searchQueue.Clear();
+        _visited.Clear();
 
-        tilesToCheck.Enqueue(startTile);
-        visited[startTile.x, startTile.y] = true;
+        // 3. Baþlangýç Ayarlarý
+        _searchQueue.Enqueue(startTile);
+        _visited.Add(startTile);
         matches.Add(startTile);
 
         int targetColor = startTile.ItemType;
 
-        while (tilesToCheck.Count > 0)
+        while (_searchQueue.Count > 0)
         {
-            Tile current = tilesToCheck.Dequeue();
+            Tile current = _searchQueue.Dequeue();
 
-            // Komþularý bulmak için grid'i gönderiyoruz
-            List<Tile> neighbors = GetNeighbors(current, grid, rows, columns);
-
-            foreach (Tile neighbor in neighbors)
+            // --- OPTÝMÝZASYON: Inlining ---
+            // GetNeighbors metodunu çaðýrýp yeni liste oluþturmak yerine (GC Alloc),
+            // döngüyü burada manuel yapýyoruz.
+            foreach (Vector2Int dir in _directions)
             {
-                if (!visited[neighbor.x, neighbor.y] && neighbor.ItemType == targetColor)
+                int newX = current.x + dir.x;
+                int newY = current.y + dir.y;
+
+                // Sýnýr Kontrolü
+                if (newX >= 0 && newX < columns && newY >= 0 && newY < rows)
                 {
-                    matches.Add(neighbor);
-                    tilesToCheck.Enqueue(neighbor);
-                    visited[neighbor.x, neighbor.y] = true;
+                    Tile neighbor = grid[newX, newY];
+
+                    // Null deðilse, ayný renkse ve daha önce ziyaret edilmediyse
+                    if (neighbor != null &&
+                        neighbor.ItemType == targetColor &&
+                        !_visited.Contains(neighbor))
+                    {
+                        matches.Add(neighbor);
+                        _searchQueue.Enqueue(neighbor);
+                        _visited.Add(neighbor);
+                    }
                 }
             }
         }
 
         return matches;
-    }
-
-    private static List<Tile> GetNeighbors(Tile tile, Tile[,] grid, int rows, int columns)
-    {
-        List<Tile> neighbors = new List<Tile>();
-        Vector2Int[] directions = { Vector2Int.right, Vector2Int.left, Vector2Int.up, Vector2Int.down };
-
-        foreach (Vector2Int dir in directions)
-        {
-            int newX = tile.x + dir.x;
-            int newY = tile.y + dir.y;
-
-            if (newX >= 0 && newX < columns && newY >= 0 && newY < rows)
-            {
-                if (grid[newX, newY] != null)
-                {
-                    neighbors.Add(grid[newX, newY]);
-                }
-            }
-        }
-        return neighbors;
     }
 }
