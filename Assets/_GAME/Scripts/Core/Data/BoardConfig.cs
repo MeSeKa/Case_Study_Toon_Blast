@@ -1,5 +1,5 @@
 using UnityEngine;
-using DG.Tweening; // Ease enum'ý için gerekli
+using DG.Tweening;
 
 [CreateAssetMenu(fileName = "BoardConfig", menuName = "Game/Board Config")]
 public class BoardConfig : ScriptableObject
@@ -16,18 +16,20 @@ public class BoardConfig : ScriptableObject
     public int poolDefaultSize = 100;
     public int poolMaxSize = 300;
 
-    // --- YENÝ EKLENEN KISIM: ANIMATION SETTINGS ---
-    [Header("Animation Settings")]
-
-    [Tooltip("Patlama animasyonu süresi")]
+    [Header("Explode Settings")]
     public float explodeDuration = 0.2f;
     public Ease explodeEase = Ease.InBack;
 
-    [Tooltip("Taþlarýn aþaðý kayma süresi")]
+    [Header("Gravity Settings")]
     public float fallDuration = 0.4f;
-    public Ease fallEase = Ease.OutBounce;
+    public Ease fallEase = Ease.OutBack;
+    [Range(0f, 2f)] public float gravityOvershoot = 0.6f;
 
-    [Tooltip("Yeni taþlarýn yukarýdan gelme süresi")]
-    public float refillDuration = 0.5f;
+    [Header("Refill Settings")]
+    [Tooltip("Yeni taþlar gelmeden önce ne kadar beklensin? (0 = Bekleme yok)")]
+    public float refillDelay = 0.2f; // Varsayýlan bir gecikme ekledik
+
+    public float refillDuration = 0.4f;
     public Ease refillEase = Ease.OutBack;
+    [Range(0f, 2f)] public float refillOvershoot = 0.85f;
 }

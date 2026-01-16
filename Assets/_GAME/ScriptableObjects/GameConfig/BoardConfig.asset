@@ -24,9 +24,12 @@ MonoBehaviour:
   - {fileID: 7985042018138347892, guid: ac3ac3044df322440872a2b1a4dcdaab, type: 3}
   poolDefaultSize: 100
   poolMaxSize: 300
-  explodeDuration: 0.2
+  explodeDuration: 0.3
   explodeEase: 26
   fallDuration: 0.4
   fallEase: 30
+  gravityOvershoot: 0.6
+  refillDelay: 0.35
   refillDuration: 0.4
   refillEase: 30
+  refillOvershoot: 2
